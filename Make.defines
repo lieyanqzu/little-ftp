@@ -1,0 +1,7 @@
+# This is the "Make.defines" file that used by "Makefile" of 
+# client and server.
+
+CC = clang
+CFLAGS = -I../lib -g -O2 -D_REENTRANT -Wall
+LIBS = -L../lib -pthread -lunp
+CLEANFILES = *.o ../common/*.o
