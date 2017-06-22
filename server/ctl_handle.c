@@ -6,7 +6,7 @@ void cmd_recevier(int sockfd)
     int res;
     int login = 0;
 
-    chdir("/");
+    chdir("/root");
     while (1)
     {
         bzero(cmd, sizeof(cmd));
@@ -14,6 +14,7 @@ void cmd_recevier(int sockfd)
             return;
         trimstr(cmd, strlen(cmd));
 
+        // handle command and send reply code
         res = command_handle(sockfd, cmd, &login);
         switch (res)
         {
@@ -27,6 +28,7 @@ void cmd_recevier(int sockfd)
     }
 }
 
+// convert table form command to handle function
 command cmds[] = {
         {"login", wait_cli_login, " - If you have username and password, log in now!", NONEED},
         {"put", file_put_handle, " <file-name> - Upload one file.", NEED},
@@ -38,7 +40,7 @@ command cmds[] = {
         {"pwd", get_pwd, " - Print Working Directory.", NEED},
         {"help", show_help, " - See something you are reading.", NONEED},
         {"bye", goodbye, " - Goodbye, world!", NONEED}, 
-        {NULL, NULL, NULL, 0}};
+        {NULL, NULL, NULL, 0}}; // end mark
 
 int command_handle(int sockfd, char *cmd, int *login)
 {
@@ -50,11 +52,12 @@ int command_handle(int sockfd, char *cmd, int *login)
     else
         ptr++;
 
-    while (ptr->start != NULL)
+    while (ptr->start != NULL) // search convert table
     {
+        // find handle function
         if (strncasecmp(cmd, ptr->start, strlen(ptr->start)) == 0)
         {
-            if (ptr->log_need == NEED && *login == 0)
+            if (ptr->log_need == NEED && *login == 0) // login is necessary
                 return LOGIN_NEED;
             else
                 return ptr->handle(sockfd, cmd);
@@ -67,7 +70,7 @@ int command_handle(int sockfd, char *cmd, int *login)
 int wait_cli_login(int sockfd, char *baduse)
 {
     char cmd[LOG_MAX*2];
-    int *login = (int *)baduse;
+    int *login = (int *)baduse; // lol, void* better
 
     if (*login == 1)
         return LOGIN_SUCCESS;
@@ -75,9 +78,10 @@ int wait_cli_login(int sockfd, char *baduse)
     send_rcode(sockfd, USER_LOGIN);
     while(1)
     {
+        // receive login string
         if (recv_cmd(sockfd, cmd, sizeof(cmd)) == -1)
             return -1;
-        if (strncmp(cmd, "123 123", sizeof(cmd)) == 0)
+        if (check_login(cmd) == 0)
         {
             send_rcode(sockfd, LOGIN_SUCCESS);
             *login = 1;
@@ -103,6 +107,7 @@ int send_list(int sockfd, char *cmd)
     bzero(list_cmd, sizeof(list_cmd));
     snprintf(list_cmd, sizeof(list_cmd), "%s > %s", cmd, temp);
     system(list_cmd);
+    // save "ls" result to file then send it
 
     size = get_file_size(temp);
     send_file_size(sockfd, size);
@@ -123,23 +128,35 @@ int send_list(int sockfd, char *cmd)
 
 int change_dir(int sockfd, char *cmd)
 {
-    char buf[128];
+    char cwd[128], buf[128];
     char chdir_cmd[CMD_MAX * 2];
     char *arg;
 
-    getcwd(buf, sizeof(buf));
+    getcwd(cwd, sizeof(cwd));
     strtok(cmd, " ");
     arg = strtok(NULL, "");
 
-    if (*arg != '/')
-        snprintf(chdir_cmd, sizeof(chdir_cmd), "%s/%s", buf, arg);
+    if (*arg != '/') // absolute path or relative path
+        snprintf(chdir_cmd, sizeof(chdir_cmd), "%s/%s", cwd, arg);
     else
         snprintf(chdir_cmd, sizeof(chdir_cmd), "%s", cmd+3);
 
     if (chdir(chdir_cmd) == 0)
-        send_rcode(sockfd, CHDIR_SUCCESS);
+    {
+        if (check_workdir(getcwd(buf, sizeof(buf))) == 0)
+        {
+            send_rcode(sockfd, CHDIR_SUCCESS);
+        }
+        else
+        {
+            // out of workdir come back
+            chdir(cwd);
+            send_rcode(sockfd, CHDIR_OUT);
+        }
+    }
     else
         send_rcode(sockfd, CHDIR_FAILED);
+
     return 0;
 }
 
@@ -153,7 +170,7 @@ int make_dir(int sockfd, char *cmd)
     strtok(cmd, " ");
     arg = strtok(NULL, "");
 
-    if (*arg != '/')
+    if (*arg != '/') // absolute path or relative path
         snprintf(mkdir_cmd, sizeof(mkdir_cmd), "%s/%s", buf, arg);
     else
         snprintf(mkdir_cmd, sizeof(mkdir_cmd), "%s", cmd + 6);
@@ -194,6 +211,7 @@ int show_help(int sockfd, char *filler)
                                         "Sadly, here is all :(\n\n");
     while (ptr->start != NULL)
     {
+        // make help text automatic
         snprintf(temp, sizeof(temp), "\t%s%s\n", ptr->start, ptr->help);
         strncat(help, temp, sizeof(help) - strlen(help) - 1);
         ptr++;
@@ -235,6 +253,7 @@ int file_trans_handle(int sockfd, char *cmd, int op)
     listenfd = Socket(AF_INET, SOCK_STREAM, 0);
     port = Sock_bind_wild(listenfd, AF_INET);
     Close(listenfd);
+    // get random port then create socket
 
     listenfd = Socket(AF_INET, SOCK_STREAM, 0);
     bzero(&servaddr, sizeof(servaddr));
@@ -256,7 +275,7 @@ int file_trans_handle(int sockfd, char *cmd, int op)
             return -1;
     }
 
-    send_port(sockfd, port);
+    send_port(sockfd, port); // tell client port number
     clifd = Accept(listenfd, NULL, NULL);
 
     switch (op)

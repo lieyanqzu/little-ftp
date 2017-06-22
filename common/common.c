@@ -55,12 +55,12 @@ int recv_file_size(int sockfd, long long *size)
 
 int send_port(int sockfd, int port)
 {
-    return send_rcode(sockfd, port);
+    return send_rcode(sockfd, port); // reuse
 }
 
 int recv_port(int sockfd, int *port)
 {
-    return recv_rcode(sockfd, port);
+    return recv_rcode(sockfd, port); // reuse
 }
 
 int send_file_head(int sockfd, file_head *header)
@@ -90,12 +90,14 @@ int send_file(int sockfd, char *filename)
     int read_c;
     char name[MAX_NAME];
 
+    // filename in server end is not NULL
     if (filename != NULL)
     {
         strncpy(name, filename, sizeof(name));
     }
     else
     {
+        // client receive file_head for creating file
         if (recv_file_head(sockfd, &fh) == -1)
             return -1;
         strncpy(name, fh.name, sizeof(name));
@@ -124,6 +126,7 @@ int recv_file(int sockfd, char *filename)
     FILE *fd;
     int i, n;
 
+    // filename in server end is not NULL
     if (filename != NULL)
     {
         fh.size = 0;
@@ -137,6 +140,7 @@ int recv_file(int sockfd, char *filename)
     fd = Fopen(fh.name, "w+");
     fseek((FILE *)fd, SEEK_SET, 0);
 
+    // number of times for receiving data
     count = fh.size / MAXLINE;
     for (i = 0; i < ((fh.size % MAXLINE) ? count + 1 : count); i++)
     {
@@ -158,8 +162,8 @@ void trimstr(char *str, int n)
     int i;
     for (i = n-1; i >= 0; i--)
     {
-        if (isspace(str[i]) || str[i] == '\n')
-            str[i] = 0;
+        if (isspace(str[i]) || str[i] == '\n') 
+            str[i] = 0; // remove white
         else
             break;
     }

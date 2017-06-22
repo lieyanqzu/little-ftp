@@ -6,7 +6,7 @@ int main(int argc, char **argv)
 {
     int listenfd;
 
-    // daemon_init(argv[0], 0);
+    daemon_init(argv[0], 0); // daemon
     listenfd = sock_bind_listen();
     client_wait(listenfd);
 

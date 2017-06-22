@@ -3,6 +3,7 @@
 
 #include <sys/epoll.h>
 #include "unp.h"
+#include "conf.h"
 #include "../common/common.h"
 #include "ctl_handle.h"
 

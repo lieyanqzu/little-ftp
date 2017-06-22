@@ -1,0 +1,14 @@
+[account]
+123 123
+admin admin
+test test
+
+[workdir]
+/root
+/usr
+/home
+/mnt
+
+[capability]
+10
+

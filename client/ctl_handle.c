@@ -11,6 +11,7 @@ void cmd_sender(int sockfd)
         printf("client>");
         Fgets(cmd, sizeof(cmd), stdin);
 
+        // send commnad to server and receive reply code
         send_cmd(sockfd, cmd, sizeof(cmd));
         if (recv_rcode(sockfd, &rc) == -1)
             rc = CONN_END;
@@ -42,10 +43,13 @@ int ctl_word_handle(int sockfd, int rc)
     case MKDIR_SUCCESS:
         break;
     case CHDIR_FAILED:
-        printf("---chdir failed!---\n");
+        printf("---Failed to change dir!---\n");
         break;
     case MKDIR_FAILED:
-        printf("----mkdir failed!---\n");
+        printf("----Failed to make dir!---\n");
+        break;
+    case CHDIR_OUT:
+        printf("---Destination out of workdir!---\n");
         break;
     case INVALID:
         printf("---Invalid command!---\n");
@@ -54,9 +58,16 @@ int ctl_word_handle(int sockfd, int rc)
     case GET_START:
         if (get_file(sockfd) == -1)
             cli_exit();
+        printf("---Get file end!---\n");
+        break;
     case PUT_START:
         if (put_file(sockfd) == -1)
             cli_exit();
+        printf("---Put file end!---\n");
+        break;
+    case CLI_FULL:
+        printf("---Clients over capability---\n");
+        return 1;
     case CONN_END:
         cli_exit();
     }
@@ -80,6 +91,7 @@ void cli_login(int sockfd, int rcode)
             *strchr(buf, '\n') = ' ';
             strncpy(logstr, buf, sizeof(buf));
 
+            // close bash echo to hide password
             tcgetattr(fileno(stdin), &oflags);
             nflags = oflags;
             nflags.c_lflag &= ~ECHO;
@@ -94,6 +106,7 @@ void cli_login(int sockfd, int rcode)
             Fgets(buf, sizeof(buf), stdin);
             *strchr(buf, '\n') = '\0';
 
+            // restore bash echo attribution
             if (tcsetattr(fileno(stdin), TCSANOW, &oflags) != 0)
             {
                 err_sys("tcsetattr error");
@@ -112,7 +125,7 @@ void cli_login(int sockfd, int rcode)
 
         if (rc == LOGIN_FAILED)
         {
-            printf("---Login failed!---\n");
+            printf("---Login failed!---\n"); // continue login
         }
 
         if (recv_rcode(sockfd, &rc) == -1)
@@ -134,7 +147,7 @@ void get_list(int sockfd)
         cli_exit();
     }
 
-    count = size / MAXLINE;
+    count = size / MAXLINE; // number of times for receiving
     for (i = 0; i < ((size % MAXLINE) ? count + 1 : count); i++)
     {
         bzero(data, sizeof(data));
@@ -161,11 +174,12 @@ int trans_file(int sockfd, int op)
 {
     int port;
     int servfd;
-    int ret;
+    int ret = 0;
     char port_s[6];
     struct sockaddr_in sin;
-    socklen_t len;
+    socklen_t len = sizeof(sin);
 
+    // connect to data transfer socket
     recv_port(sockfd, &port);
     snprintf(port_s, sizeof(port_s), "%d", port);
     Getpeername(sockfd, (SA *)&sin, &len);

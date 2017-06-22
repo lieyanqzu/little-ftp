@@ -4,7 +4,7 @@ PROGS = server
 
 all:	${PROGS}
 
-server:	main.o listen.o client_wait.o ctl_handle.o ../common/common.o
+server:	main.o listen.o client_wait.o conf.o ctl_handle.o ../common/common.o
 	${CC} ${CFLAGS} -o $@ $^ ${LIBS}
 
 clean:

@@ -2,6 +2,8 @@
 
 #include <sys/epoll.h>
 
+static int capab;
+
 void client_wait(int listenfd)
 {
     int n, nfds;
@@ -12,7 +14,8 @@ void client_wait(int listenfd)
 
     struct epoll_event ev, events[MAX_EVENT];
 
-    Signal(SIGCHLD, sig_chld);
+    Signal(SIGCHLD, sig_chld); // handling SIGCHLD
+    capab = get_capab(); // set capability
 
     if ( (epfd = epoll_create1(0)) == -1 )
         err_sys("epoll_create error");
@@ -25,6 +28,7 @@ void client_wait(int listenfd)
 
     for (;;)
     {
+        // wait listenfd
         nfds = epoll_wait(epfd, events, MAX_EVENT, -1);
 
         if (nfds == -1)
@@ -42,6 +46,17 @@ void client_wait(int listenfd)
                 clifd = Accept(listenfd, (SA *)&cliaddr, (socklen_t *)&clilen);
                 if (clifd == -1)
                     err_sys("accept error");
+
+                if (capab > 0)
+                    capab --;
+                else
+                {
+                    // out of capability
+                    send_rcode(clifd, CLI_FULL);
+                    Close(clifd);
+                    continue;
+                }
+
                 if (Fork() == 0)
                 {
                     Close(listenfd);
@@ -59,6 +74,7 @@ void sig_chld(int signo)
 {
     pid_t pid;
     int stat;
+    capab ++; // one new slot for client
     while((pid = waitpid(-1, &stat, WNOHANG)) > 0);
     return;
 }
